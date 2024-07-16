@@ -7,7 +7,6 @@ const Authentication = require('./Authentication.js');
 const fs = require('fs');
 
 const currentVersionFeatures = require('../package.json').parseDashboardFeatures;
-
 let newFeaturesInLatestVersion = [];
 packageJson('parse-dashboard', { version: 'latest', fullMetadata: true })
   .then(latestPackage => {
@@ -36,13 +35,13 @@ function checkIfIconsExistForApps(apps, iconsFolder) {
     const iconName = currentApp.iconName;
     const path = iconsFolder + '/' + iconName;
 
-    fs.stat(path, function(err) {
+    fs.stat(path, function (err) {
       if (err) {
-        if ('ENOENT' == err.code) {// file does not exist
-          console.warn('Icon with file name: ' + iconName + ' couldn\'t be found in icons folder!');
+        if ('ENOENT' == err.code) {
+          // file does not exist
+          console.warn('Icon with file name: ' + iconName + " couldn't be found in icons folder!");
         } else {
-          console.log(
-            'An error occurd while checking for icons, please check permission!');
+          console.log('An error occurd while checking for icons, please check permission!');
         }
       } else {
         //every thing was ok so for example you can read it and send it to client
@@ -51,11 +50,11 @@ function checkIfIconsExistForApps(apps, iconsFolder) {
   }
 }
 
-module.exports = function(config, options) {
+module.exports = function (config, options) {
   options = options || {};
   const app = express();
   // Serve public files.
-  app.use(express.static(path.join(__dirname,'public')));
+  app.use(express.static(path.join(__dirname, 'public')));
 
   // Allow setting via middleware
   if (config.trustProxy && app.disabled('trust proxy')) {
@@ -63,25 +62,30 @@ module.exports = function(config, options) {
   }
 
   // wait for app to mount in order to get mountpath
-  app.on('mount', function() {
+  app.on('mount', function () {
     const mountPath = getMount(app.mountpath);
     const users = config.users;
     const useEncryptedPasswords = config.useEncryptedPasswords ? true : false;
     const authInstance = new Authentication(users, useEncryptedPasswords, mountPath);
-    authInstance.initialize(app, { cookieSessionSecret: options.cookieSessionSecret, cookieSessionMaxAge: options.cookieSessionMaxAge });
+    authInstance.initialize(app, {
+      cookieSessionSecret: options.cookieSessionSecret,
+      cookieSessionMaxAge: options.cookieSessionMaxAge,
+    });
 
     // CSRF error handler
     app.use(function (err, req, res, next) {
-      if (err.code !== 'EBADCSRFTOKEN') {return next(err)}
+      if (err.code !== 'EBADCSRFTOKEN') {
+        return next(err);
+      }
 
       // handle CSRF token errors here
-      res.status(403)
-      res.send('form tampered with')
+      res.status(403);
+      res.send('form tampered with');
     });
 
     // Serve the configuration.
-    app.get('/parse-dashboard-config.json', function(req, res) {
-      const apps = config.apps.map((app) => Object.assign({}, app)); // make a copy
+    app.get('/parse-dashboard-config.json', function (req, res) {
+      const apps = config.apps.map(app => Object.assign({}, app)); // make a copy
       const response = {
         apps: apps,
         newFeaturesInLatestVersion: newFeaturesInLatestVersion,
@@ -96,12 +100,18 @@ module.exports = function(config, options) {
       if (!options.dev && !requestIsLocal) {
         if (!req.secure && !options.allowInsecureHTTP) {
           //Disallow HTTP requests except on localhost, to prevent the master key from being transmitted in cleartext
-          return res.send({ success: false, error: 'Parse Dashboard can only be remotely accessed via HTTPS' });
+          return res.send({
+            success: false,
+            error: 'Parse Dashboard can only be remotely accessed via HTTPS',
+          });
         }
 
         if (!users) {
           //Accessing the dashboard over the internet can only be done with username and password
-          return res.send({ success: false, error: 'Configure a user to access Parse Dashboard remotely' });
+          return res.send({
+            success: false,
+            error: 'Configure a user to access Parse Dashboard remotely',
+          });
         }
       }
       const authentication = req.user;
@@ -111,7 +121,7 @@ module.exports = function(config, options) {
       const isReadOnly = authentication && authentication.isReadOnly;
       // User is full read-only, replace the masterKey by the read-only one
       if (isReadOnly) {
-        response.apps = response.apps.map((app) => {
+        response.apps = response.apps.map(app => {
           app.masterKey = app.readOnlyMasterKey;
           if (!app.masterKey) {
             throw new Error('You need to provide a readOnlyMasterKey to use read-only features.');
@@ -131,7 +141,7 @@ module.exports = function(config, options) {
                 app.masterKey = app.readOnlyMasterKey;
               }
               return isSame;
-            })
+            });
           });
         }
         // They provided correct auth
@@ -167,13 +177,15 @@ module.exports = function(config, options) {
         }
       } catch (e) {
         // Directory doesn't exist or something.
-        console.warn('Iconsfolder at path: ' + config.iconsFolder +
-          ' not found!');
+        console.warn('Iconsfolder at path: ' + config.iconsFolder + ' not found!');
       }
     }
 
-    app.get('/login', csrf(), function(req, res) {
-      const redirectURL = req.url.includes('?redirect=') && req.url.split('?redirect=')[1].length > 1 && req.url.split('?redirect=')[1];
+    app.get('/login', csrf(), function (req, res) {
+      const redirectURL =
+        req.url.includes('?redirect=') &&
+        req.url.split('?redirect=')[1].length > 1 &&
+        req.url.split('?redirect=')[1];
       if (!users || (req.user && req.user.isAuthenticated)) {
         return res.redirect(`${mountPath}${redirectURL || 'apps'}`);
       }
@@ -182,7 +194,7 @@ module.exports = function(config, options) {
       if (errors && errors.length) {
         errors = `<div id="login_errors" style="display: none;">
           ${errors.join(' ')}
-        </div>`
+        </div>`;
       }
       res.send(`<!DOCTYPE html>
       <html>
@@ -205,7 +217,7 @@ module.exports = function(config, options) {
     });
 
     // For every other request, go to index.html. Let client-side handle the rest.
-    app.get('/*', function(req, res) {
+    app.get('/*', function (req, res) {
       if (users && (!req.user || !req.user.isAuthenticated)) {
         const redirect = req.url.replace('/login', '');
         if (redirect.length > 1) {
@@ -236,4 +248,4 @@ module.exports = function(config, options) {
   });
 
   return app;
-}
+};

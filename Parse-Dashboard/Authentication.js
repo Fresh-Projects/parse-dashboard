@@ -3,7 +3,11 @@ const bcrypt = require('bcryptjs');
 const csrf = require('csurf');
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
-const OTPAuth = require('otpauth')
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const OTPAuth = require('otpauth');
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 /**
  * Constructor for Authentication class
@@ -19,68 +23,123 @@ function Authentication(validUsers, useEncryptedPasswords, mountPath) {
 }
 
 function initialize(app, options) {
+  console.log('initialize', app, options, this);
   options = options || {};
   const self = this;
-  passport.use('local', new LocalStrategy(
-    {passReqToCallback:true},
-    function(req, username, password, cb) {
+  passport.use(
+    'local',
+    new LocalStrategy({ passReqToCallback: true }, function (req, username, password, cb) {
       const match = self.authenticate({
         name: username,
         pass: password,
-        otpCode: req.body.otpCode
+        otpCode: req.body.otpCode,
       });
       if (!match.matchingUsername) {
-        return cb(null, false, { message: JSON.stringify({ text: 'Invalid username or password' }) });
+        return cb(null, false, {
+          message: JSON.stringify({ text: 'Invalid username or password' }),
+        });
       }
       if (!match.otpValid) {
-        return cb(null, false, { message: JSON.stringify({ text: 'Invalid one-time password.', otpLength: match.otpMissingLength || 6}) });
+        return cb(null, false, {
+          message: JSON.stringify({
+            text: 'Invalid one-time password.',
+            otpLength: match.otpMissingLength || 6,
+          }),
+        });
       }
       if (match.otpMissingLength) {
-        return cb(null, false, { message: JSON.stringify({ text: 'Please enter your one-time password.', otpLength: match.otpMissingLength || 6 })});
+        return cb(null, false, {
+          message: JSON.stringify({
+            text: 'Please enter your one-time password.',
+            otpLength: match.otpMissingLength || 6,
+          }),
+        });
       }
       cb(null, match.matchingUsername);
     })
   );
 
-  passport.serializeUser(function(username, cb) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: GOOGLE_CLIENT_ID,
+        clientSecret: GOOGLE_CLIENT_SECRET,
+        callbackURL: 'http://localhost:4040/auth/google/callback',
+      },
+      function (accessToken, refreshToken, profile, cb) {
+        // console.log('google-auth', accessToken, refreshToken, profile);
+        const validUsers = self.validUsers;
+        const user = validUsers.find(
+          user => user.email === profile.emails[0].value && profile.emails[0].verified
+        );
+        if (!user) {
+          console.error('Email address not authorized.');
+          return cb(null, false, {
+            message: JSON.stringify({ text: 'Email address not authorized.' }),
+          });
+        }
+        console.info('Google auth success', user);
+        cb(null, user.user);
+      }
+    )
+  );
+
+  passport.serializeUser(function (username, cb) {
     cb(null, username);
   });
 
-  passport.deserializeUser(function(username, cb) {
-    const user = self.authenticate({
-      name: username
-    }, true);
+  passport.deserializeUser(function (username, cb) {
+    const user = self.authenticate(
+      {
+        name: username,
+      },
+      true
+    );
     cb(null, user);
   });
 
-  const cookieSessionSecret = options.cookieSessionSecret || require('crypto').randomBytes(64).toString('hex');
+  const cookieSessionSecret =
+    options.cookieSessionSecret || require('crypto').randomBytes(64).toString('hex');
   const cookieSessionMaxAge = options.cookieSessionMaxAge;
   app.use(require('connect-flash')());
   app.use(require('body-parser').urlencoded({ extended: true }));
-  app.use(require('cookie-session')({
-    key    : 'parse_dash',
-    secret : cookieSessionSecret,
-    maxAge : cookieSessionMaxAge
-  }));
+  app.use(
+    require('cookie-session')({
+      key: 'parse_dash',
+      secret: cookieSessionSecret,
+      maxAge: cookieSessionMaxAge,
+    })
+  );
   app.use(passport.initialize());
   app.use(passport.session());
 
-  app.post('/login',
-    csrf(),
-    (req,res,next) => {
-      let redirect = 'apps';
-      if (req.body.redirect) {
-        redirect = req.body.redirect.charAt(0) === '/' ? req.body.redirect.substring(1) : req.body.redirect
-      }
-      return passport.authenticate('local', {
-        successRedirect: `${self.mountPath}${redirect}`,
-        failureRedirect: `${self.mountPath}login${req.body.redirect ? `?redirect=${req.body.redirect}` : ''}`,
-        failureFlash : true
-      })(req, res, next)
-    },
+  app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+  app.get(
+    '/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/login', failureFlash: true }),
+    function (req, res) {
+      // Successful authentication, redirect home.
+      res.redirect('/');
+    }
   );
 
-  app.get('/logout', function(req, res){
+  app.post('/login', csrf(), (req, res, next) => {
+    let redirect = 'apps';
+    if (req.body.redirect) {
+      redirect =
+        req.body.redirect.charAt(0) === '/' ? req.body.redirect.substring(1) : req.body.redirect;
+    }
+    return passport.authenticate('local', {
+      successRedirect: `${self.mountPath}${redirect}`,
+      failureRedirect: `${self.mountPath}login${
+        req.body.redirect ? `?redirect=${req.body.redirect}` : ''
+      }`,
+      failureFlash: true,
+    })(req, res, next);
+  });
+
+  app.get('/logout', function (req, res) {
     req.logout();
     res.redirect(`${self.mountPath}login`);
   });
@@ -100,7 +159,8 @@ function authenticate(userToTest, usernameOnly) {
   let otpValid = true;
 
   //they provided auth
-  const isAuthenticated = userToTest &&
+  const isAuthenticated =
+    userToTest &&
     //there are configured users
     this.validUsers &&
     //the provided auth matches one of the users
@@ -118,7 +178,7 @@ function authenticate(userToTest, usernameOnly) {
             period: user.mfaPeriod,
           });
           const valid = totp.validate({
-            token: userToTest.otpCode
+            token: userToTest.otpCode,
           });
           if (valid === null) {
             otpValid = false;
@@ -126,7 +186,10 @@ function authenticate(userToTest, usernameOnly) {
           }
         }
       }
-      const passwordMatches = this.useEncryptedPasswords && !usernameOnly ? bcrypt.compareSync(userToTest.pass, user.pass) : userToTest.pass == user.pass;
+      const passwordMatches =
+        this.useEncryptedPasswords && !usernameOnly
+          ? bcrypt.compareSync(userToTest.pass, user.pass)
+          : userToTest.pass == user.pass;
       if (usernameMatches && (usernameOnly || passwordMatches)) {
         isAuthenticated = true;
         matchingUsername = user.user;
@@ -135,7 +198,9 @@ function authenticate(userToTest, usernameOnly) {
         isReadOnly = !!user.readOnly; // make it true/false
       }
       return isAuthenticated;
-    }) ? true : false;
+    })
+      ? true
+      : false;
 
   return {
     isAuthenticated,

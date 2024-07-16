@@ -68,7 +68,8 @@
   border: none;
   cursor: pointer;
 
-  &:hover, &:focus {
+  &:hover,
+  &:focus {
     background: $darkGreen;
   }
 
@@ -76,4 +77,19 @@
     background: #dadada;
     cursor: default;
   }
+}
+
+.authgooglebutton {
+  display: block;
+  background: #fff;
+  height: 42px;
+  width: 100%;
+  font-size: 16px;
+  line-height: 42px;
+  border-radius: 5px;
+  color: #333;
+  margin-top: 15px;
+  outline: none;
+  border: none;
+  cursor: pointer;
 }
