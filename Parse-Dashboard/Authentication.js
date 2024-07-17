@@ -23,7 +23,6 @@ function Authentication(validUsers, useEncryptedPasswords, mountPath) {
 }
 
 function initialize(app, options) {
-  console.log('initialize', app, options, this);
   options = options || {};
   const self = this;
   passport.use(
