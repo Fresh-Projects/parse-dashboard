@@ -43,7 +43,7 @@ export default class LoginForm extends React.Component {
             className={styles.submit}
             value={this.props.action}
           />
-          <a href="/auth/google" className={styles.authgooglebutton}>
+          <a href="auth/google" className={styles.authgooglebutton}>
             Authenticate with Google
           </a>
         </form>

@@ -8,6 +8,8 @@ const OTPAuth = require('otpauth');
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CLIENT_CALLBACK =
+  process.env.GOOGLE_CLIENT_CALLBACK | 'http://localhost:4040/auth/google/callback';
 
 /**
  * Constructor for Authentication class
@@ -63,7 +65,7 @@ function initialize(app, options) {
       {
         clientID: GOOGLE_CLIENT_ID,
         clientSecret: GOOGLE_CLIENT_SECRET,
-        callbackURL: 'http://localhost:4040/auth/google/callback',
+        callbackURL: GOOGLE_CLIENT_CALLBACK,
       },
       function (accessToken, refreshToken, profile, cb) {
         // console.log('google-auth', accessToken, refreshToken, profile);
