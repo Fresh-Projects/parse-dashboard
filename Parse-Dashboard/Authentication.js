@@ -121,7 +121,7 @@ function initialize(app, options) {
     passport.authenticate('google', { failureRedirect: '/login', failureFlash: true }),
     function (req, res) {
       // Successful authentication, redirect home.
-      res.redirect('/');
+      res.redirect(`${self.mountPath}`);
     }
   );
 
