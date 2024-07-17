@@ -9,7 +9,7 @@ const OTPAuth = require('otpauth');
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_CLIENT_CALLBACK =
-  process.env.GOOGLE_CLIENT_CALLBACK | 'http://localhost:4040/auth/google/callback';
+  process.env.GOOGLE_CLIENT_CALLBACK || 'http://localhost:4040/auth/google/callback';
 
 /**
  * Constructor for Authentication class
